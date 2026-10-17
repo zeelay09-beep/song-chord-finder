@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>သီချင်း Chord Finder</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans Myanmar",sans-serif;color:#172033;background:#f4f7fb}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:850px;margin:auto;padding:18px}
+header{background:linear-gradient(135deg,#152b55,#2767a8);color:white;padding:26px 20px;border-radius:20px;margin:8px 0 18px}
+h1{font-size:25px;margin:0 0 8px}header p{margin:0;opacity:.9;line-height:1.7}
+.card{background:white;border:1px solid #e0e7f0;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 5px 18px #13264a0a}
+label{display:block;font-weight:650;margin-bottom:8px}
+input[type=file],input[type=url],textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:white;font:inherit}
+button{border:0;border-radius:11px;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer}
+.primary{background:#205db5;color:white}.secondary{background:#e9f0fa;color:#183b6d}
+button:disabled{opacity:.5;cursor:wait}.row{display:flex;gap:10px;flex-wrap:wrap}.row button{flex:1}
+.muted{color:#5f6d81;font-size:14px;line-height:1.7}.status{padding:12px;border-radius:10px;background:#eef4fc;margin-top:12px;white-space:pre-wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.stat{background:#f3f7fc;padding:12px;border-radius:12px}.stat small{display:block;color:#66748a}.stat strong{font-size:20px;overflow-wrap:anywhere}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.9}
+h2{font-size:19px;margin:0 0 14px}.hidden{display:none}
+footer{text-align:center;color:#6c7788;font-size:12px;padding:16px}
+</style>
+</head>
+<body><main class="wrap">
+<header><h1>🎵 သီချင်း Chord Finder</h1><p>MP3 / WAV ထည့်ပါ · Key နဲ့ Chord ခန့်မှန်းပါ · Lyrics စစ်ဆေးပါ · PDF ထုတ်ပါ</p></header>
+
+<section class="card">
+<h2>၁။ AI Server ချိတ်ဆက်ရန်</h2>
+<label for="api">Backend URL</label>
+<input id="api" type="url" placeholder="အွန်လိုင်းတင်ပြီးနောက် အလိုအလျောက်ချိတ်ဆက်မည်" autocomplete="url">
+<p class="muted">Web App နဲ့ AI Server ကို တစ်နေရာတည်း အွန်လိုင်းတင်ထားပါက URL ကို အလိုအလျောက်သုံးပါမယ်။ Server သီးခြားဖြစ်ပါက URL ထည့်နိုင်ပါတယ်။</p>
+</section>
+
+<section class="card">
+<h2>၂။ သီချင်းဖိုင်ရွေးပါ</h2>
+<label for="audio">MP3 / WAV ဖိုင်</label>
+<input id="audio" type="file" accept=".mp3,.wav,.m4a,.flac,.ogg,audio/*">
+<p id="fileInfo" class="muted">ဖိုင် မရွေးရသေးပါ။</p>
+<div class="row">
+<button class="primary" id="analyze">AI နဲ့ ခွဲခြမ်းစိတ်ဖြာရန်</button>
+<button class="secondary" id="demo">နမူနာရလဒ် ကြည့်ရန်</button>
+</div>
+<div id="status" class="status" role="status">ဖိုင်ရွေးပြီး AI Server URL ထည့်ပါ။</div>
+</section>
+
+<section id="results" class="card hidden">
+<h2>၃။ ခွဲခြမ်းစိတ်ဖြာမှု ရလဒ်</h2>
+<div class="grid">
+<div class="stat"><small>Key</small><strong id="key">—</strong></div>
+<div class="stat"><small>Tempo</small><strong id="tempo">—</strong></div>
+<div class="stat"><small>ကြာချိန်</small><strong id="duration">—</strong></div>
+</div>
+<h2 style="margin-top:20px">Intro Chord</h2><pre id="intro"></pre>
+<h2>သီချင်းတစ်ပုဒ်လုံး Chord</h2><pre id="chords"></pre>
+<h2>Lyrics / သီချင်းစာသား</h2>
+<textarea id="lyrics" rows="8" placeholder="AI က ဖော်ထုတ်ထားတဲ့စာသားကို ဒီမှာ ပြင်ဆင်နိုင်ပါတယ်"></textarea>
+<p class="muted" id="warning"></p>
+<button class="primary" id="pdf">PDF ထုတ်ရန်</button>
+</section>
+<footer>Chord နဲ့ Key တွေဟာ AI ခန့်မှန်းချက်များဖြစ်ပြီး နားထောင်စစ်ဆေးရန် လိုအပ်နိုင်ပါတယ်။</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let latest = null;
+const fmtChordList = list => (list || []).map(x => `${Number(x.time_seconds||0).toFixed(1)}s  —  ${x.chord||"?"}`).join("\n") || "Chord မရရှိပါ။";
+$("audio").addEventListener("change", () => {
+ const f=$("audio").files[0];
+ $("fileInfo").textContent=f?`${f.name} · ${(f.size/1024/1024).toFixed(2)} MB`:"ဖိုင် မရွေးရသေးပါ။";
+});
+function showResult(data){
+ latest=data; $("results").classList.remove("hidden");
+ $("key").textContent=data.key||"မသိရှိ";
+ $("tempo").textContent=data.tempo_bpm?`${data.tempo_bpm} BPM`:"မသိရှိ";
+ $("duration").textContent=data.duration_seconds?`${data.duration_seconds} sec`:"—";
+ $("intro").textContent=fmtChordList(data.intro_chords);
+ $("chords").textContent=fmtChordList(data.chords);
+ $("lyrics").value=data.lyrics||"စာသား မဖော်ထုတ်နိုင်ပါ။";
+ $("warning").textContent=data.warning||"Key/Chord တွေကို နားထောင်ပြီး ပြန်စစ်ပါ။";
+}
+$("analyze").addEventListener("click", async ()=>{
+ const file=$("audio").files[0]; let base=$("api").value.trim().replace(/\/+$/,""); if(!base && location.protocol.startsWith("http")) base=location.origin;
+ if(!file){$("status").textContent="အရင်ဆုံး MP3/WAV ဖိုင်ရွေးပါ။";return}
+ if(!base){$("status").textContent="AI Server URL မရရှိပါ။ Web App ကို အွန်လိုင်းတင်ထားပြီးမှ တကယ်ခွဲခြမ်းစိတ်ဖြာနိုင်ပါတယ်။";return}
+ if(file.size>40*1024*1024){$("status").textContent="ဖိုင်အရွယ်အစား 40 MB ထက် မကျော်ရပါ။";return}
+ $("analyze").disabled=true; $("status").textContent="ဖိုင်ကို Server သို့ ပို့ပြီး ခွဲခြမ်းစိတ်ဖြာနေပါတယ်။ အချိန်ကြာနိုင်ပါတယ်…";
+ try{
+   const form=new FormData();form.append("file",file,file.name);
+   const res=await fetch(base+"/analyze",{method:"POST",body:form});
+   const body=await res.text(); let data;
+   try{data=JSON.parse(body)}catch{throw new Error("Server က JSON မပြန်ပါ။ URL နဲ့ Server ကို စစ်ပါ။")}
+   if(!res.ok)throw new Error(data.detail||`HTTP ${res.status}`);
+   showResult(data);$("status").textContent="ပြီးပါပြီ။ Lyrics နဲ့ Chord တွေကို စစ်ဆေးပြီး PDF ထုတ်နိုင်ပါတယ်။";
+ }catch(e){$("status").textContent=`ချိတ်ဆက်မှု မအောင်မြင်ပါ: ${e.message}\nHTTPS Server URL မှန်ကန်မှု၊ Server အလုပ်လုပ်နေမှုနဲ့ CORS ကို စစ်ပါ။`}
+ finally{$("analyze").disabled=false}
+});
+$("demo").addEventListener("click",()=>{
+ showResult({key:"C (နမူနာ)",tempo_bpm:92,duration_seconds:180,
+ intro_chords:[{time_seconds:0,chord:"C"},{time_seconds:2,chord:"Am"},{time_seconds:4,chord:"F"},{time_seconds:6,chord:"G"}],
+ chords:[{time_seconds:0,chord:"C"},{time_seconds:2,chord:"Am"},{time_seconds:4,chord:"F"},{time_seconds:6,chord:"G"}],
+ lyrics:"ဤသည် UI စမ်းသပ်ရန် နမူနာစာသားသာ ဖြစ်သည်။\nတကယ့်သီချင်းစာသား မဟုတ်ပါ။",
+ warning:"နမူနာရလဒ်သာဖြစ်ပြီး သင်ရွေးထားသောအသံမှ ခွဲခြမ်းထားခြင်း မဟုတ်ပါ။"});
+ $("status").textContent="နမူနာရလဒ်ကို ပြထားပါတယ်။ AI ခွဲခြမ်းစိတ်ဖြာချက် မဟုတ်ပါ။";
+});
+$("pdf").addEventListener("click",()=>{
+ if(!latest)return;
+ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+ const chordLines=(latest.chords||[]).map(x=>`${Number(x.time_seconds||0).toFixed(1)}s — ${x.chord||""}`).join("\n");
+ const introLines=(latest.intro_chords||[]).map(x=>`${Number(x.time_seconds||0).toFixed(1)}s — ${x.chord||""}`).join("\n");
+ const w=window.open("","_blank");
+ if(!w){$("status").textContent="PDF စာမျက်နှာဖွင့်မရပါ။ Browser pop-up ခွင့်ပြုပါ။";return}
+ w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Song Chord Finder PDF</title><style>
+ body{font-family:Arial,sans-serif;margin:28px;color:#111}h1,h2{color:#173c70}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.8 Arial,sans-serif} .lyrics{font-family:"Noto Sans Myanmar","Myanmar Text",sans-serif}@media print{button{display:none}}
+ </style></head><body><h1>Song Chord Finder</h1>
+ <p>Key: <b>${esc(latest.key)}</b>　 Tempo: <b>${esc(latest.tempo_bpm)} BPM</b>　 Duration: ${esc(latest.duration_seconds)} sec</p>
+ <h2>Intro Chords</h2><pre>${esc(introLines||"မရှိပါ")}</pre>
+ <h2>Full Song Chords</h2><pre>${esc(chordLines||"မရှိပါ")}</pre>
+ <h2>Lyrics</h2><pre class="lyrics">${esc($("lyrics").value)}</pre>
+ <p>${esc(latest.warning||"Chord/key ခန့်မှန်းချက်များကို ပြန်စစ်ပါ။")}</p>
+ <button onclick="window.print()">Print / Save as PDF</button><script>setTimeout(()=>window.print(),500)<\/script></body></html>`);
+ w.document.close();
+});
+</script>
+</body></html>
