@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: song-chord-finder
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: WHISPER_MODEL
+        value: tiny
